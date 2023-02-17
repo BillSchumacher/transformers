@@ -34,7 +34,7 @@ def download_wmt_dataset(src_lang="ro", tgt_lang="en", dataset="wmt16", save_dir
     """
     try:
         import datasets
-    except (ModuleNotFoundError, ImportError):
+    except ImportError:
         raise ImportError("run pip install datasets")
     pair = f"{src_lang}-{tgt_lang}"
     print(f"Converting {dataset}-{pair}")

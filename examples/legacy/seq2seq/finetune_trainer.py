@@ -181,7 +181,7 @@ def main():
         training_args.local_rank,
         training_args.device,
         training_args.n_gpu,
-        bool(training_args.parallel_mode == ParallelMode.DISTRIBUTED),
+        training_args.parallel_mode == ParallelMode.DISTRIBUTED,
         training_args.fp16,
     )
     transformers.utils.logging.enable_default_handler()
@@ -201,7 +201,7 @@ def main():
     # download model & vocab.
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        model_args.config_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
 
@@ -212,7 +212,7 @@ def main():
             setattr(config, p, getattr(training_args, p))
 
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        model_args.tokenizer_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
     model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -320,7 +320,7 @@ def main():
 
         if trainer.is_world_process_zero():
             handle_metrics("train", metrics, training_args.output_dir)
-            all_metrics.update(metrics)
+            all_metrics |= metrics
 
             # Need to save the state, since Trainer.save_model saves only the tokenizer with the model
             trainer.state.save_to_json(os.path.join(training_args.output_dir, "trainer_state.json"))

@@ -188,13 +188,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.task_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower() if type(self.task_name) == str else self.task_name
 
 
@@ -229,14 +228,12 @@ def create_train_state(
         flat_params = traverse_util.flatten_dict(params)
         # find out all LayerNorm parameters
         layer_norm_candidates = ["layernorm", "layer_norm", "ln"]
-        layer_norm_named_params = set(
-            [
-                layer[-2:]
-                for layer_norm_name in layer_norm_candidates
-                for layer in flat_params.keys()
-                if layer_norm_name in "".join(layer).lower()
-            ]
-        )
+        layer_norm_named_params = {
+            layer[-2:]
+            for layer_norm_name in layer_norm_candidates
+            for layer in flat_params.keys()
+            if layer_norm_name in "".join(layer).lower()
+        }
         flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
         return traverse_util.unflatten_dict(flat_mask)
 
@@ -281,8 +278,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def glue_train_data_collator(rng: PRNGKey, dataset: Dataset, batch_size: int):
@@ -295,9 +293,7 @@ def glue_train_data_collator(rng: PRNGKey, dataset: Dataset, batch_size: int):
     for perm in perms:
         batch = dataset[perm]
         batch = {k: np.array(v) for k, v in batch.items()}
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def glue_eval_data_collator(dataset: Dataset, batch_size: int):
@@ -309,9 +305,7 @@ def glue_eval_data_collator(dataset: Dataset, batch_size: int):
 
     for idx in batch_idx:
         batch = dataset[idx]
-        batch = {k: np.array(v) for k, v in batch.items()}
-
-        yield batch
+        yield {k: np.array(v) for k, v in batch.items()}
 
 
 def main():
@@ -643,14 +637,16 @@ def main():
                 if has_tensorboard and jax.process_index() == 0:
                     write_eval_metric(summary_writer, eval_metric, cur_step)
 
-            if (cur_step % training_args.save_steps == 0 and cur_step > 0) or (cur_step == total_steps):
-                # save checkpoint after each epoch and push checkpoint to the hub
-                if jax.process_index() == 0:
-                    params = jax.device_get(unreplicate(state.params))
-                    model.save_pretrained(training_args.output_dir, params=params)
-                    tokenizer.save_pretrained(training_args.output_dir)
-                    if training_args.push_to_hub:
-                        repo.push_to_hub(commit_message=f"Saving weights and logs of step {cur_step}", blocking=False)
+            if (
+                (cur_step % training_args.save_steps == 0 and cur_step > 0)
+                or (cur_step == total_steps)
+                and jax.process_index() == 0
+            ):
+                params = jax.device_get(unreplicate(state.params))
+                model.save_pretrained(training_args.output_dir, params=params)
+                tokenizer.save_pretrained(training_args.output_dir)
+                if training_args.push_to_hub:
+                    repo.push_to_hub(commit_message=f"Saving weights and logs of step {cur_step}", blocking=False)
             epochs.desc = f"Epoch ... {epoch + 1}/{num_epochs}"
 
     # save the eval metrics in json

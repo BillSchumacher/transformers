@@ -36,7 +36,7 @@ def main():
                 full_error_msg += arg_error_msg.format(arg[5:])
             else:
                 wrong_args.append(arg)
-        if len(wrong_args) > 0:
+        if wrong_args:
             full_error_msg = full_error_msg + begin_error_msg + str(wrong_args)
         raise ValueError(full_error_msg)
 

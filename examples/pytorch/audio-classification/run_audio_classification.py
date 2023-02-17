@@ -217,8 +217,10 @@ def main():
 
     # Log on each process the small summary:
     logger.warning(
-        f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu} "
-        + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
+        (
+            f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu} "
+            + f"distributed training: {training_args.local_rank != -1}, 16-bits training: {training_args.fp16}"
+        )
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
@@ -293,7 +295,7 @@ def main():
                 audio["array"], max_length=data_args.max_length_seconds, sample_rate=feature_extractor.sampling_rate
             )
             output_batch["input_values"].append(wav)
-        output_batch["labels"] = [label for label in batch[data_args.label_column_name]]
+        output_batch["labels"] = list(batch[data_args.label_column_name])
 
         return output_batch
 
@@ -303,14 +305,14 @@ def main():
         for audio in batch[data_args.audio_column_name]:
             wav = audio["array"]
             output_batch["input_values"].append(wav)
-        output_batch["labels"] = [label for label in batch[data_args.label_column_name]]
+        output_batch["labels"] = list(batch[data_args.label_column_name])
 
         return output_batch
 
     # Prepare label mappings.
     # We'll include these in the model's config to get human readable labels in the Inference API.
     labels = raw_datasets["train"].features[data_args.label_column_name].names
-    label2id, id2label = dict(), dict()
+    label2id, id2label = {}, {}
     for i, label in enumerate(labels):
         label2id[label] = str(i)
         id2label[str(i)] = label
@@ -337,7 +339,7 @@ def main():
     )
     model = AutoModelForAudioClassification.from_pretrained(
         model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
+        from_tf=".ckpt" in model_args.model_name_or_path,
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,

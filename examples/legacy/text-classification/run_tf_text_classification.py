@@ -69,7 +69,7 @@ def get_tfds(
     transformed_ds = {}
 
     if len(features_name) == 1:
-        for k in files.keys():
+        for k in files:
             transformed_ds[k] = ds[k].map(
                 lambda example: tokenizer.batch_encode_plus(
                     example[features_name[0]], truncation=True, max_length=max_seq_length, padding="max_length"
@@ -77,7 +77,7 @@ def get_tfds(
                 batched=True,
             )
     elif len(features_name) == 2:
-        for k in files.keys():
+        for k in files:
             transformed_ds[k] = ds[k].map(
                 lambda example: tokenizer.batch_encode_plus(
                     (example[features_name[0]], example[features_name[1]]),
@@ -228,8 +228,7 @@ def main():
         level=logging.INFO,
     )
     logger.info(
-        f"n_replicas: {training_args.n_replicas}, distributed training: {bool(training_args.n_replicas > 1)}, "
-        f"16-bits training: {training_args.fp16}"
+        f"n_replicas: {training_args.n_replicas}, distributed training: {training_args.n_replicas > 1}, 16-bits training: {training_args.fp16}"
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
@@ -240,7 +239,7 @@ def main():
     # download model & vocab.
 
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        model_args.tokenizer_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
 
@@ -254,7 +253,7 @@ def main():
     )
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        model_args.config_name or model_args.model_name_or_path,
         num_labels=len(label2id),
         label2id=label2id,
         id2label={id: label for label, id in label2id.items()},
@@ -265,7 +264,7 @@ def main():
     with training_args.strategy.scope():
         model = TFAutoModelForSequenceClassification.from_pretrained(
             model_args.model_name_or_path,
-            from_pt=bool(".bin" in model_args.model_name_or_path),
+            from_pt=".bin" in model_args.model_name_or_path,
             config=config,
             cache_dir=model_args.cache_dir,
         )

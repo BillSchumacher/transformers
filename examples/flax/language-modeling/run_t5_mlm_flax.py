@@ -237,13 +237,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
 
 
 def compute_input_and_target_lengths(inputs_length, noise_density, mean_noise_span_length):
@@ -336,7 +335,12 @@ class FlaxDataCollatorForT5MLM:
         input_ids = batch["input_ids"]
         batch_size, expandend_input_length = input_ids.shape
 
-        mask_indices = np.asarray([self.random_spans_noise_mask(expandend_input_length) for i in range(batch_size)])
+        mask_indices = np.asarray(
+            [
+                self.random_spans_noise_mask(expandend_input_length)
+                for _ in range(batch_size)
+            ]
+        )
         labels_mask = ~mask_indices
 
         input_ids_sentinel = self.create_sentinel_ids(mask_indices.astype(np.int8))

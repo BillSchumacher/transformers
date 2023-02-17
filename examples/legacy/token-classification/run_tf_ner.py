@@ -137,14 +137,14 @@ def main():
     logger.info(
         "n_replicas: %s, distributed training: %s, 16-bits training: %s",
         training_args.n_replicas,
-        bool(training_args.n_replicas > 1),
+        training_args.n_replicas > 1,
         training_args.fp16,
     )
     logger.info("Training/evaluation parameters %s", training_args)
 
     # Prepare Token Classification task
     labels = token_classification_task.get_labels(data_args.labels)
-    label_map: Dict[int, str] = {i: label for i, label in enumerate(labels)}
+    label_map: Dict[int, str] = dict(enumerate(labels))
     num_labels = len(labels)
 
     # Load pretrained model and tokenizer
@@ -154,14 +154,14 @@ def main():
     # download model & vocab.
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        model_args.config_name or model_args.model_name_or_path,
         num_labels=num_labels,
         id2label=label_map,
         label2id={label: i for i, label in enumerate(labels)},
         cache_dir=model_args.cache_dir,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        model_args.tokenizer_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast,
     )
@@ -169,7 +169,7 @@ def main():
     with training_args.strategy.scope():
         model = TFAutoModelForTokenClassification.from_pretrained(
             model_args.model_name_or_path,
-            from_pt=bool(".bin" in model_args.model_name_or_path),
+            from_pt=".bin" in model_args.model_name_or_path,
             config=config,
             cache_dir=model_args.cache_dir,
         )
@@ -297,7 +297,7 @@ def main():
                         if not preds_list[example_id]:
                             example_id += 1
                     elif preds_list[example_id]:
-                        output_line = line.split()[0] + " " + preds_list[example_id].pop(0) + "\n"
+                        output_line = f"{line.split()[0]} {preds_list[example_id].pop(0)}" + "\n"
 
                         writer.write(output_line)
                     else:

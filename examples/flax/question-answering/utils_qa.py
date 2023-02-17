@@ -170,7 +170,7 @@ def postprocess_qa_predictions(
         if (
             version_2_with_negative
             and min_null_prediction is not None
-            and not any(p["offsets"] == (0, 0) for p in predictions)
+            and all(p["offsets"] != (0, 0) for p in predictions)
         ):
             predictions.append(min_null_prediction)
 

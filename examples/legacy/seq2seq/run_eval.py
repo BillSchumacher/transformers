@@ -48,7 +48,7 @@ def generate_summaries_or_translations(
 ) -> Dict:
     """Save model.generate results to <out_file>, and return how long it took."""
     fout = Path(out_file).open("w", encoding="utf-8")
-    model_name = str(model_name)
+    model_name = model_name
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
     if fp16:
         model = model.half()
@@ -131,7 +131,10 @@ def run_generate(verbose=True):
     parsed_args = parse_numeric_n_bool_cl_kwargs(rest)
     if parsed_args and verbose:
         print(f"parsed the following generate kwargs: {parsed_args}")
-    examples = [" " + x.rstrip() if "t5" in args.model_name else x.rstrip() for x in open(args.input_path).readlines()]
+    examples = [
+        f" {x.rstrip()}" if "t5" in args.model_name else x.rstrip()
+        for x in open(args.input_path).readlines()
+    ]
     if args.n_obs > 0:
         examples = examples[: args.n_obs]
     Path(args.save_path).parent.mkdir(exist_ok=True)
@@ -163,7 +166,7 @@ def run_generate(verbose=True):
     output_lns = [x.rstrip() for x in open(args.save_path).readlines()]
     reference_lns = [x.rstrip() for x in open(args.reference_path).readlines()][: len(output_lns)]
     scores: dict = score_fn(output_lns, reference_lns)
-    scores.update(runtime_metrics)
+    scores |= runtime_metrics
 
     if args.dump_args:
         scores.update(parsed_args)

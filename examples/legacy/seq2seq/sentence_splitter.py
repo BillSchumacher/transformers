@@ -20,7 +20,7 @@ try:
     import nltk
 
     NLTK_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
+except ImportError:
     NLTK_AVAILABLE = False
 
 if NLTK_AVAILABLE:

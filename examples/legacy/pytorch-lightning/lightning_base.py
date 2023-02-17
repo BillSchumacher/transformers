@@ -80,13 +80,13 @@ class BaseTransformer(pl.LightningModule):
         self.save_hyperparameters(hparams)
         self.step_count = 0
         self.output_dir = Path(self.hparams.output_dir)
-        cache_dir = self.hparams.cache_dir if self.hparams.cache_dir else None
+        cache_dir = self.hparams.cache_dir or None
         if config is None:
             self.config = AutoConfig.from_pretrained(
-                self.hparams.config_name if self.hparams.config_name else self.hparams.model_name_or_path,
+                self.hparams.config_name or self.hparams.model_name_or_path,
                 **({"num_labels": num_labels} if num_labels is not None else {}),
                 cache_dir=cache_dir,
-                **config_kwargs,
+                **config_kwargs
             )
         else:
             self.config: PretrainedConfig = config
@@ -99,7 +99,7 @@ class BaseTransformer(pl.LightningModule):
 
         if tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.hparams.tokenizer_name if self.hparams.tokenizer_name else self.hparams.model_name_or_path,
+                self.hparams.tokenizer_name or self.hparams.model_name_or_path,
                 cache_dir=cache_dir,
             )
         else:
@@ -108,7 +108,7 @@ class BaseTransformer(pl.LightningModule):
         if model is None:
             self.model = self.model_type.from_pretrained(
                 self.hparams.model_name_or_path,
-                from_tf=bool(".ckpt" in self.hparams.model_name_or_path),
+                from_tf=".ckpt" in self.hparams.model_name_or_path,
                 config=self.config,
                 cache_dir=cache_dir,
             )
@@ -132,11 +132,19 @@ class BaseTransformer(pl.LightningModule):
         no_decay = ["bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
             {
-                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if all(nd not in n for nd in no_decay)
+                ],
                 "weight_decay": self.hparams.weight_decay,
             },
             {
-                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if any(nd in n for nd in no_decay)
+                ],
                 "weight_decay": 0.0,
             },
         ]
@@ -189,11 +197,7 @@ class BaseTransformer(pl.LightningModule):
     def _feature_file(self, mode):
         return os.path.join(
             self.hparams.data_dir,
-            "cached_{}_{}_{}".format(
-                mode,
-                list(filter(None, self.hparams.model_name_or_path.split("/"))).pop(),
-                str(self.hparams.max_seq_length),
-            ),
+            f'cached_{mode}_{list(filter(None, self.hparams.model_name_or_path.split("/"))).pop()}_{str(self.hparams.max_seq_length)}',
         )
 
     @pl.utilities.rank_zero_only
@@ -278,7 +282,7 @@ class LoggingCallback(pl.Callback):
         # Log results
         for key in sorted(metrics):
             if key not in ["log", "progress_bar"]:
-                rank_zero_info("{} = {}\n".format(key, str(metrics[key])))
+                rank_zero_info(f"{key} = {str(metrics[key])}\n")
 
     def on_test_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         rank_zero_info("***** Test results *****")
@@ -288,8 +292,8 @@ class LoggingCallback(pl.Callback):
         with open(output_test_results_file, "w") as writer:
             for key in sorted(metrics):
                 if key not in ["log", "progress_bar"]:
-                    rank_zero_info("{} = {}\n".format(key, str(metrics[key])))
-                    writer.write("{} = {}\n".format(key, str(metrics[key])))
+                    rank_zero_info(f"{key} = {str(metrics[key])}\n")
+                    writer.write(f"{key} = {str(metrics[key])}\n")
 
 
 def add_generic_args(parser, root_dir) -> None:
@@ -375,8 +379,8 @@ def generic_train(
         train_params["distributed_backend"] = "ddp"
 
     train_params["accumulate_grad_batches"] = args.accumulate_grad_batches
-    train_params["accelerator"] = extra_train_kwargs.get("accelerator", None)
-    train_params["profiler"] = extra_train_kwargs.get("profiler", None)
+    train_params["accelerator"] = extra_train_kwargs.get("accelerator")
+    train_params["profiler"] = extra_train_kwargs.get("profiler")
 
     trainer = pl.Trainer.from_argparse_args(
         args,

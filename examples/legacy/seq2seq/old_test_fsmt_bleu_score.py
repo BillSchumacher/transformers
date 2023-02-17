@@ -24,7 +24,7 @@ from transformers.testing_utils import get_tests_dir, require_torch, slow, torch
 from utils import calculate_bleu
 
 
-filename = get_tests_dir() + "/test_data/fsmt/fsmt_val_data.json"
+filename = f"{get_tests_dir()}/test_data/fsmt/fsmt_val_data.json"
 with io.open(filename, "r", encoding="utf-8") as f:
     bleu_data = json.load(f)
 

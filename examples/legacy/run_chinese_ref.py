@@ -18,19 +18,16 @@ def _is_chinese_char(cp):
     # as is Japanese Hiragana and Katakana. Those alphabets are used to write
     # space-separated words, so they are not treated specially and handled
     # like the all of the other languages.
-    if (
+    return (
         (cp >= 0x4E00 and cp <= 0x9FFF)
-        or (cp >= 0x3400 and cp <= 0x4DBF)  #
-        or (cp >= 0x20000 and cp <= 0x2A6DF)  #
-        or (cp >= 0x2A700 and cp <= 0x2B73F)  #
-        or (cp >= 0x2B740 and cp <= 0x2B81F)  #
-        or (cp >= 0x2B820 and cp <= 0x2CEAF)  #
+        or (cp >= 0x3400 and cp <= 0x4DBF)
+        or (cp >= 0x20000 and cp <= 0x2A6DF)
+        or (cp >= 0x2A700 and cp <= 0x2B73F)
+        or (cp >= 0x2B740 and cp <= 0x2B81F)
+        or (cp >= 0x2B820 and cp <= 0x2CEAF)
         or (cp >= 0xF900 and cp <= 0xFAFF)
-        or (cp >= 0x2F800 and cp <= 0x2FA1F)  #
-    ):  #
-        return True
-
-    return False
+        or (cp >= 0x2F800 and cp <= 0x2FA1F)
+    )
 
 
 def is_chinese(word: str):
@@ -46,17 +43,15 @@ def get_chinese_word(tokens: List[str]):
     word_set = set()
 
     for token in tokens:
-        chinese_word = len(token) > 1 and is_chinese(token)
-        if chinese_word:
+        if chinese_word := len(token) > 1 and is_chinese(token):
             word_set.add(token)
-    word_list = list(word_set)
-    return word_list
+    return list(word_set)
 
 
 def add_sub_symbol(bert_tokens: List[str], chinese_word_set: set()):
     if not chinese_word_set:
         return bert_tokens
-    max_word_len = max([len(w) for w in chinese_word_set])
+    max_word_len = max(len(w) for w in chinese_word_set)
 
     bert_word = bert_tokens
     start, end = 0, len(bert_word)
@@ -68,7 +63,7 @@ def add_sub_symbol(bert_tokens: List[str], chinese_word_set: set()):
                 whole_word = "".join(bert_word[start : start + i])
                 if whole_word in chinese_word_set:
                     for j in range(start + 1, start + i):
-                        bert_word[j] = "##" + bert_word[j]
+                        bert_word[j] = f"##{bert_word[j]}"
                     start = start + i
                     single_word = False
                     break

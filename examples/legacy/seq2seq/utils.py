@@ -42,7 +42,7 @@ try:
     from fairseq.data.data_utils import batch_by_size
 
     FAIRSEQ_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
+except ImportError:
     FAIRSEQ_AVAILABLE = False
 
 
@@ -135,9 +135,9 @@ class AbstractSeq2SeqDataset(Dataset):
         **dataset_kwargs,
     ):
         super().__init__()
-        self.src_file = Path(data_dir).joinpath(type_path + ".source")
-        self.tgt_file = Path(data_dir).joinpath(type_path + ".target")
-        self.len_file = Path(data_dir).joinpath(type_path + ".len")
+        self.src_file = Path(data_dir).joinpath(f"{type_path}.source")
+        self.tgt_file = Path(data_dir).joinpath(f"{type_path}.target")
+        self.len_file = Path(data_dir).joinpath(f"{type_path}.len")
         if os.path.exists(self.len_file):
             self.src_lens = pickle_load(self.len_file)
             self.used_char_len = False
@@ -154,7 +154,11 @@ class AbstractSeq2SeqDataset(Dataset):
             self.src_lens = self.src_lens[:n_obs]
         self.pad_token_id = self.tokenizer.pad_token_id
         self.dataset_kwargs = dataset_kwargs
-        dataset_kwargs.update({"add_prefix_space": True} if isinstance(self.tokenizer, BartTokenizer) else {})
+        dataset_kwargs |= (
+            {"add_prefix_space": True}
+            if isinstance(self.tokenizer, BartTokenizer)
+            else {}
+        )
 
     def __len__(self):
         return len(self.src_lens)
@@ -418,9 +422,7 @@ class DistributedSortishSampler(Sampler):
         # add extra samples to make it evenly divisible
         indices += indices[: (self.total_size - len(indices))]
         assert len(indices) == self.total_size
-        # subsample
-        available_indices = indices[self.rank : self.total_size : self.num_replicas]
-        return available_indices
+        return indices[self.rank : self.total_size : self.num_replicas]
 
     def __len__(self):
         return self.num_samples
@@ -456,7 +458,7 @@ def pickle_save(obj, path):
 
 
 def flatten_list(summary_ids: List[List]):
-    return [x for x in itertools.chain.from_iterable(summary_ids)]
+    return list(itertools.chain.from_iterable(summary_ids))
 
 
 def save_git_info(folder_path: str) -> None:
@@ -478,13 +480,12 @@ def load_json(path):
 def get_git_info():
     try:
         repo = git.Repo(search_parent_directories=True)
-        repo_infos = {
+        return {
             "repo_id": str(repo),
             "repo_sha": str(repo.head.object.hexsha),
             "repo_branch": str(repo.active_branch),
             "hostname": str(socket.gethostname()),
         }
-        return repo_infos
     except TypeError:
         return {
             "repo_id": None,
@@ -542,15 +543,14 @@ def calculate_rouge(
         scores = scorer.score(pred, tgt)
         aggregator.add_scores(scores)
 
-    if bootstrap_aggregation:
-        result = aggregator.aggregate()
-        if return_precision_and_recall:
-            return extract_rouge_mid_statistics(result)  # here we return dict
-        else:
-            return {k: round(v.mid.fmeasure * 100, 4) for k, v in result.items()}
-
-    else:
+    if not bootstrap_aggregation:
         return aggregator._scores  # here we return defaultdict(list)
+    result = aggregator.aggregate()
+    return (
+        extract_rouge_mid_statistics(result)
+        if return_precision_and_recall
+        else {k: round(v.mid.fmeasure * 100, 4) for k, v in result.items()}
+    )
 
 
 # Utilities for freezing parameters and checking whether they are frozen

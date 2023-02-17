@@ -105,7 +105,11 @@ class Plot:
     def plot(self):
         fig, ax = plt.subplots()
         title_str = "Time usage" if self.args.is_time else "Memory usage"
-        title_str = title_str + " for training" if self.args.is_train else title_str + " for inference"
+        title_str = (
+            f"{title_str} for training"
+            if self.args.is_train
+            else f"{title_str} for inference"
+        )
 
         if not self.args.no_log_scale:
             # set logarithm scales

@@ -295,15 +295,14 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                if extension not in ["csv", "json"]:
-                    raise ValueError(f"`train_file` should be a csv or a json file, got {extension}.")
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                if extension not in ["csv", "json"]:
-                    raise ValueError(f"`validation_file` should be a csv or a json file, got {extension}.")
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            if extension not in ["csv", "json"]:
+                raise ValueError(f"`train_file` should be a csv or a json file, got {extension}.")
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            if extension not in ["csv", "json"]:
+                raise ValueError(f"`validation_file` should be a csv or a json file, got {extension}.")
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
 
@@ -342,9 +341,7 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
 
         selected_indices = batch_idx[start_idx:end_idx]
         batch = dataset[selected_indices]
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def write_metric(summary_writer, metrics, train_time, step, metric_key_prefix="train"):
@@ -372,8 +369,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def main():
