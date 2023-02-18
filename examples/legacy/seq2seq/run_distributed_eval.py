@@ -60,7 +60,7 @@ def eval_data_dir(
     **generate_kwargs,
 ) -> Dict:
     """Run evaluation on part of the data for one gpu and save to {save_dir}/rank_{rank}_output.json"""
-    model_name = str(model_name)
+    model_name = model_name
     assert local_rank is not None
     torch.distributed.init_process_group(backend="nccl", rank=local_rank)
 
@@ -110,8 +110,9 @@ def eval_data_dir(
         ids = batch["ids"]
         if num_return_sequences > 1:
             preds = chunks(preds, num_return_sequences)  # batch size chunks, each of size num_return_seq
-        for i, pred in enumerate(preds):
-            results.append(dict(pred=pred, id=ids[i].item()))
+        results.extend(
+            dict(pred=pred, id=ids[i].item()) for i, pred in enumerate(preds)
+        )
     save_json(results, save_path)
     return results, sampler.num_replicas
 
@@ -163,12 +164,10 @@ def run_generate():
     generate_kwargs = parse_numeric_n_bool_cl_kwargs(rest)
     if generate_kwargs and args.local_rank <= 0:
         print(f"parsed the following generate kwargs: {generate_kwargs}")
-    json_save_dir = Path(args.save_dir + "_tmp")
+    json_save_dir = Path(f"{args.save_dir}_tmp")
     Path(json_save_dir).mkdir(exist_ok=True)  # this handles locking.
-    intermediate_files = list(json_save_dir.glob("rank_*.json"))
-    if intermediate_files:
+    if intermediate_files := list(json_save_dir.glob("rank_*.json")):
         raise ValueError(f"Found files at {json_save_dir} please move or remove them.")
-        # In theory, a node could finish and save before another node hits this. If this happens, we can address later.
     dataset_kwargs = {}
     if args.src_lang is not None:
         dataset_kwargs["src_lang"] = args.src_lang
@@ -203,7 +202,7 @@ def run_generate():
             print(f"Saving aggregated results at {save_path}, intermediate in {json_save_dir}/")
             save_json(preds, save_path)
             return
-        tgt_file = Path(args.data_dir).joinpath(args.type_path + ".target")
+        tgt_file = Path(args.data_dir).joinpath(f"{args.type_path}.target")
         with open(tgt_file) as f:
             labels = [x.rstrip() for x in f.readlines()][: len(preds)]
 
@@ -233,8 +232,7 @@ def combine_partial_results(partial_results) -> List:
     for partial_result in partial_results:
         records.extend(partial_result)
     records = list(sorted(records, key=lambda x: x["id"]))
-    preds = [x["pred"] for x in records]
-    return preds
+    return [x["pred"] for x in records]
 
 
 def gather_results_from_each_node(num_replicas, save_dir, timeout) -> List[Dict[str, List]]:
@@ -247,13 +245,10 @@ def gather_results_from_each_node(num_replicas, save_dir, timeout) -> List[Dict[
         if len(json_files) < num_replicas:
             continue
         try:
-            # make sure all json files are fully saved
-            json_data = lmap(load_json, json_files)
-            return json_data
+            return lmap(load_json, json_files)
         except JSONDecodeError:
             continue
-    else:
-        raise TimeoutError("Rank 0 gave up on waiting for other processes")
+    raise TimeoutError("Rank 0 gave up on waiting for other processes")
     # Unreachable
 
 

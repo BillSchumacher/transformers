@@ -32,11 +32,10 @@ logger = logging.getLogger()
 def get_results(output_dir):
     results = {}
     path = os.path.join(output_dir, "all_results.json")
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            results = json.load(f)
-    else:
+    if not os.path.exists(path):
         raise ValueError(f"can't find {path}")
+    with open(path, "r") as f:
+        results = json.load(f)
     return results
 
 

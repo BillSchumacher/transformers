@@ -64,10 +64,11 @@ def load_rocstories_dataset(dataset_path):
     """Output a list of tuples(story, 1st continuation, 2nd continuation, label)"""
     with open(dataset_path, encoding="utf_8") as f:
         f = csv.reader(f)
-        output = []
         next(f)  # skip the first line
-        for line in tqdm(f):
-            output.append((" ".join(line[1:5]), line[5], line[6], int(line[-1]) - 1))
+        output = [
+            (" ".join(line[1:5]), line[5], line[6], int(line[-1]) - 1)
+            for line in tqdm(f)
+        ]
     return output
 
 
@@ -189,7 +190,7 @@ def main():
             return tokenizer.convert_tokens_to_ids(tokenizer.tokenize(obj))
         elif isinstance(obj, int):
             return obj
-        return list(tokenize_and_encode(o) for o in obj)
+        return [tokenize_and_encode(o) for o in obj]
 
     logger.info("Encoding dataset...")
     train_dataset = load_rocstories_dataset(args.train_dataset)
@@ -230,10 +231,21 @@ def main():
         no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
             {
-                "params": [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+                "params": [
+                    p
+                    for n, p in param_optimizer
+                    if all(nd not in n for nd in no_decay)
+                ],
                 "weight_decay": args.weight_decay,
             },
-            {"params": [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
+            {
+                "params": [
+                    p
+                    for n, p in param_optimizer
+                    if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
         ]
         optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
         scheduler = get_linear_schedule_with_warmup(

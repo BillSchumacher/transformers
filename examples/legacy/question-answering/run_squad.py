@@ -92,10 +92,21 @@ def train(args, train_dataset, model, tokenizer):
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if all(nd not in n for nd in no_decay)
+            ],
             "weight_decay": args.weight_decay,
         },
-        {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], "weight_decay": 0.0},
+        {
+            "params": [
+                p
+                for n, p in model.named_parameters()
+                if any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": 0.0,
+        },
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
     scheduler = get_linear_schedule_with_warmup(
@@ -192,13 +203,14 @@ def train(args, train_dataset, model, tokenizer):
                 del inputs["token_type_ids"]
 
             if args.model_type in ["xlnet", "xlm"]:
-                inputs.update({"cls_index": batch[5], "p_mask": batch[6]})
+                inputs |= {"cls_index": batch[5], "p_mask": batch[6]}
                 if args.version_2_with_negative:
-                    inputs.update({"is_impossible": batch[7]})
+                    inputs["is_impossible"] = batch[7]
                 if hasattr(model, "config") and hasattr(model.config, "lang2id"):
-                    inputs.update(
-                        {"langs": (torch.ones(batch[0].shape, dtype=torch.int64) * args.lang_id).to(args.device)}
-                    )
+                    inputs["langs"] = (
+                        torch.ones(batch[0].shape, dtype=torch.int64)
+                        * args.lang_id
+                    ).to(args.device)
 
             outputs = model(**inputs)
             # model outputs are always tuple in transformers (see doc)
@@ -233,14 +245,14 @@ def train(args, train_dataset, model, tokenizer):
                     if args.local_rank == -1 and args.evaluate_during_training:
                         results = evaluate(args, model, tokenizer)
                         for key, value in results.items():
-                            tb_writer.add_scalar("eval_{}".format(key), value, global_step)
+                            tb_writer.add_scalar(f"eval_{key}", value, global_step)
                     tb_writer.add_scalar("lr", scheduler.get_lr()[0], global_step)
                     tb_writer.add_scalar("loss", (tr_loss - logging_loss) / args.logging_steps, global_step)
                     logging_loss = tr_loss
 
                 # Save model checkpoint
                 if args.local_rank in [-1, 0] and args.save_steps > 0 and global_step % args.save_steps == 0:
-                    output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))
+                    output_dir = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                     # Take care of distributed/parallel training
                     model_to_save = model.module if hasattr(model, "module") else model
                     model_to_save.save_pretrained(output_dir)
@@ -283,7 +295,7 @@ def evaluate(args, model, tokenizer, prefix=""):
         model = torch.nn.DataParallel(model)
 
     # Eval!
-    logger.info("***** Running evaluation {} *****".format(prefix))
+    logger.info(f"***** Running evaluation {prefix} *****")
     logger.info("  Num examples = %d", len(dataset))
     logger.info("  Batch size = %d", args.eval_batch_size)
 
@@ -308,12 +320,13 @@ def evaluate(args, model, tokenizer, prefix=""):
 
             # XLNet and XLM use more arguments for their predictions
             if args.model_type in ["xlnet", "xlm"]:
-                inputs.update({"cls_index": batch[4], "p_mask": batch[5]})
+                inputs |= {"cls_index": batch[4], "p_mask": batch[5]}
                 # for lang_id-sensitive xlm models
                 if hasattr(model, "config") and hasattr(model.config, "lang2id"):
-                    inputs.update(
-                        {"langs": (torch.ones(batch[0].shape, dtype=torch.int64) * args.lang_id).to(args.device)}
-                    )
+                    inputs["langs"] = (
+                        torch.ones(batch[0].shape, dtype=torch.int64)
+                        * args.lang_id
+                    ).to(args.device)
             outputs = model(**inputs)
 
         for i, feature_index in enumerate(feature_indices):
@@ -350,11 +363,17 @@ def evaluate(args, model, tokenizer, prefix=""):
     logger.info("  Evaluation done in total %f secs (%f sec per example)", evalTime, evalTime / len(dataset))
 
     # Compute predictions
-    output_prediction_file = os.path.join(args.output_dir, "predictions_{}.json".format(prefix))
-    output_nbest_file = os.path.join(args.output_dir, "nbest_predictions_{}.json".format(prefix))
+    output_prediction_file = os.path.join(
+        args.output_dir, f"predictions_{prefix}.json"
+    )
+    output_nbest_file = os.path.join(
+        args.output_dir, f"nbest_predictions_{prefix}.json"
+    )
 
     if args.version_2_with_negative:
-        output_null_log_odds_file = os.path.join(args.output_dir, "null_odds_{}.json".format(prefix))
+        output_null_log_odds_file = os.path.join(
+            args.output_dir, f"null_odds_{prefix}.json"
+        )
     else:
         output_null_log_odds_file = None
 
@@ -395,9 +414,7 @@ def evaluate(args, model, tokenizer, prefix=""):
             tokenizer,
         )
 
-    # Compute the F1 and exact scores.
-    results = squad_evaluate(examples, predictions)
-    return results
+    return squad_evaluate(examples, predictions)
 
 
 def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=False):
@@ -406,14 +423,10 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
         torch.distributed.barrier()
 
     # Load data features from cache or dataset file
-    input_dir = args.data_dir if args.data_dir else "."
+    input_dir = args.data_dir or "."
     cached_features_file = os.path.join(
         input_dir,
-        "cached_{}_{}_{}".format(
-            "dev" if evaluate else "train",
-            list(filter(None, args.model_name_or_path.split("/"))).pop(),
-            str(args.max_seq_length),
-        ),
+        f'cached_{"dev" if evaluate else "train"}_{list(filter(None, args.model_name_or_path.split("/"))).pop()}_{str(args.max_seq_length)}',
     )
 
     # Init features and dataset from cache if it exists
@@ -465,9 +478,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
         # Make sure only the first process in distributed training process the dataset, and the others will use the cache
         torch.distributed.barrier()
 
-    if output_examples:
-        return dataset, examples, features
-    return dataset
+    return (dataset, examples, features) if output_examples else dataset
 
 
 def main():

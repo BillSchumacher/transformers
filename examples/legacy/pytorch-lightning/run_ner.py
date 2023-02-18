@@ -67,20 +67,24 @@ class NERTransformer(BaseTransformer):
             else:
                 logger.info("Creating features from dataset file at %s", args.data_dir)
                 examples = self.token_classification_task.read_examples_from_file(args.data_dir, mode)
-                features = self.token_classification_task.convert_examples_to_features(
-                    examples,
-                    self.labels,
-                    args.max_seq_length,
-                    self.tokenizer,
-                    cls_token_at_end=bool(self.config.model_type in ["xlnet"]),
-                    cls_token=self.tokenizer.cls_token,
-                    cls_token_segment_id=2 if self.config.model_type in ["xlnet"] else 0,
-                    sep_token=self.tokenizer.sep_token,
-                    sep_token_extra=False,
-                    pad_on_left=bool(self.config.model_type in ["xlnet"]),
-                    pad_token=self.tokenizer.pad_token_id,
-                    pad_token_segment_id=self.tokenizer.pad_token_type_id,
-                    pad_token_label_id=self.pad_token_label_id,
+                features = (
+                    self.token_classification_task.convert_examples_to_features(
+                        examples,
+                        self.labels,
+                        args.max_seq_length,
+                        self.tokenizer,
+                        cls_token_at_end=self.config.model_type in ["xlnet"],
+                        cls_token=self.tokenizer.cls_token,
+                        cls_token_segment_id=2
+                        if self.config.model_type in ["xlnet"]
+                        else 0,
+                        sep_token=self.tokenizer.sep_token,
+                        sep_token_extra=False,
+                        pad_on_left=self.config.model_type in ["xlnet"],
+                        pad_token=self.tokenizer.pad_token_id,
+                        pad_token_segment_id=self.tokenizer.pad_token_type_id,
+                        pad_token_label_id=self.pad_token_label_id,
+                    )
                 )
                 logger.info("Saving features into cached file %s", cached_features_file)
                 torch.save(features, cached_features_file)
@@ -122,7 +126,7 @@ class NERTransformer(BaseTransformer):
         preds = np.argmax(preds, axis=2)
         out_label_ids = np.concatenate([x["target"] for x in outputs], axis=0)
 
-        label_map = {i: label for i, label in enumerate(self.labels)}
+        label_map = dict(enumerate(self.labels))
         out_label_list = [[] for _ in range(out_label_ids.shape[0])]
         preds_list = [[] for _ in range(out_label_ids.shape[0])]
 
@@ -140,7 +144,7 @@ class NERTransformer(BaseTransformer):
             "f1": f1_score(out_label_list, preds_list),
         }
 
-        ret = {k: v for k, v in results.items()}
+        ret = dict(results)
         ret["log"] = results
         return ret, preds_list, out_label_list
 

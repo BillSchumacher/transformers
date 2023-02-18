@@ -38,8 +38,8 @@ def pack_examples(tok, src_examples, tgt_examples, max_tokens=1024):
         return tok(strang, return_tensors="pt").input_ids.shape[1] > max_tokens
 
     for src, tgt in tqdm(sorted_examples[1:]):
-        cand_src = new_src + " " + src
-        cand_tgt = new_tgt + " " + tgt
+        cand_src = f"{new_src} {src}"
+        cand_tgt = f"{new_tgt} {tgt}"
         if is_too_big(cand_src) or is_too_big(cand_tgt):  # cant fit, finalize example
             finished_src.append(new_src)
             finished_tgt.append(new_tgt)

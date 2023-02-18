@@ -100,7 +100,7 @@ def main():
         training_args.local_rank,
         training_args.device,
         training_args.n_gpu,
-        bool(training_args.local_rank != -1),
+        training_args.local_rank != -1,
         training_args.fp16,
     )
     # Set the verbosity to info of the Transformers logger (on main process only):
@@ -118,17 +118,17 @@ def main():
     # download model & vocab.
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        model_args.config_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        model_args.tokenizer_name or model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
-        use_fast=False,  # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
+        use_fast=False,
     )
     model = AutoModelForQuestionAnswering.from_pretrained(
         model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
+        from_tf=".ckpt" in model_args.model_name_or_path,
         config=config,
         cache_dir=model_args.cache_dir,
     )

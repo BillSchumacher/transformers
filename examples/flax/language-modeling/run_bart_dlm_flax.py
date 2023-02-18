@@ -239,13 +239,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json", "txt"], "`train_file` should be a csv, a json or a txt file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json", "txt"], "`validation_file` should be a csv, a json or a txt file."
 
 
 @flax.struct.dataclass
@@ -319,15 +318,13 @@ class FlaxDataCollatorForBartDenoisingLM:
         sentence_ends = np.argwhere(end_sentence_mask)
         sentence_ends[:, 1] += 1
         example_has_multiple_sentences, num_sentences = np.unique(sentence_ends[:, 0], return_counts=True)
-        num_sentences_map = {sent_idx: count for sent_idx, count in zip(example_has_multiple_sentences, num_sentences)}
+        num_sentences_map = dict(zip(example_has_multiple_sentences, num_sentences))
 
         num_to_permute = np.ceil(num_sentences * self.permute_sentence_ratio).astype(int)
-        num_to_permute_map = {
-            sent_idx: count for sent_idx, count in zip(example_has_multiple_sentences, num_to_permute)
-        }
+        num_to_permute_map = dict(zip(example_has_multiple_sentences, num_to_permute))
 
         sentence_ends = np.split(sentence_ends[:, 1], np.unique(sentence_ends[:, 0], return_index=True)[1][1:])
-        sentence_ends_map = {sent_idx: count for sent_idx, count in zip(example_has_multiple_sentences, sentence_ends)}
+        sentence_ends_map = dict(zip(example_has_multiple_sentences, sentence_ends))
 
         for i in range(input_ids.shape[0]):
             if i not in example_has_multiple_sentences:

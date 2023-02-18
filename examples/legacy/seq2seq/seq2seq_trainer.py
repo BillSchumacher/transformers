@@ -99,11 +99,19 @@ class Seq2SeqTrainer(Trainer):
             no_decay = ["bias", "LayerNorm.weight"]
             optimizer_grouped_parameters = [
                 {
-                    "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
+                    "params": [
+                        p
+                        for n, p in self.model.named_parameters()
+                        if all(nd not in n for nd in no_decay)
+                    ],
                     "weight_decay": self.args.weight_decay,
                 },
                 {
-                    "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
+                    "params": [
+                        p
+                        for n, p in self.model.named_parameters()
+                        if any(nd in n for nd in no_decay)
+                    ],
                     "weight_decay": 0.0,
                 },
             ]
@@ -135,14 +143,15 @@ class Seq2SeqTrainer(Trainer):
     def _get_lr_scheduler(self, num_training_steps):
         schedule_func = arg_to_scheduler[self.args.lr_scheduler]
         if self.args.lr_scheduler == "constant":
-            scheduler = schedule_func(self.optimizer)
+            return schedule_func(self.optimizer)
         elif self.args.lr_scheduler == "constant_w_warmup":
-            scheduler = schedule_func(self.optimizer, num_warmup_steps=self.args.warmup_steps)
+            return schedule_func(self.optimizer, num_warmup_steps=self.args.warmup_steps)
         else:
-            scheduler = schedule_func(
-                self.optimizer, num_warmup_steps=self.args.warmup_steps, num_training_steps=num_training_steps
+            return schedule_func(
+                self.optimizer,
+                num_warmup_steps=self.args.warmup_steps,
+                num_training_steps=num_training_steps,
             )
-        return scheduler
 
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if isinstance(self.train_dataset, torch.utils.data.IterableDataset):

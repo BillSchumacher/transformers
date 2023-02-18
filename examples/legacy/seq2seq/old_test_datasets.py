@@ -209,7 +209,7 @@ class TestAll(TestCasePlus):
         ds, max_tokens, tokenizer = self._get_dataset()
         ids1 = set(DistributedSortishSampler(ds, 256, num_replicas=2, rank=0, add_extra_examples=False))
         ids2 = set(DistributedSortishSampler(ds, 256, num_replicas=2, rank=1, add_extra_examples=False))
-        assert ids1.intersection(ids2) == set()
+        assert not ids1.intersection(ids2)
 
     @parameterized.expand(
         [
